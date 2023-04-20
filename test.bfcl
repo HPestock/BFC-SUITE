@@ -1,0 +1,4 @@
+#memory 26;
+int a 65;
+cout %a;
+cout "\n";
