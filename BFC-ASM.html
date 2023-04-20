@@ -1,0 +1,193 @@
+<!DOCTYPE HTML>
+
+<head>
+
+</head>
+<body>
+<h1>BF-C ASM</h1>
+
+<textarea id="inpt"></textarea>
+<textarea id="outp"></textarea>
+<br>
+<button onclick="compile_frominpt();">Compile.</button>
+<br>
+<p>NOTE: Do not let the values of cells/variables equal -1, causes issues<br>
+<br>
+setup (final allocated memory index): initializes memory format<br>
+set (cell) (value): sets cell (cell) to (value)<br>
+mvr (amt): move pointer right by (amt)<br>
+dec (cell) (amt): decrements cell (cell) by (amt)<br>
+inc (cell) (amt): increments cell (cell) by (amt)<br>
+goto (cell): sets pointer to (cell)<br>
+gotof_ncz (cell): sets pointer to (cell), do not use if at cell 0<br>
+mv (input cell) (output cell): sets cell (output cell) to value at (input cell), then sets value at (input cell) to 0<br>
+printaz (character number): prints character with numerical code (character number), use when at cell 0<br>
+printanz (character number): prints character with numerical code (character number), use when not at cell 0<br>
+getchar (cell): stores input char at cell (cell)<br>
+loop (cell): start of loop, will halt when value at (cell) is 0; make sure value at (cell) is not 0 or -1, otherwise issues will occur<br>
+endloop (cell): end of loop, will halt and continue if value at (cell) is 0, otherwise jumps to start of loop<br>
+if (cell): start of if statement, will execute if value at (cell) is not 0<br>
+endif (cell): end of if statement (cell)<br>
+inv (cell i) (cell p) (cell w): if (cell i) is equal to 0 will set (cell i) to 0 and (cell p) to 1, if (cell i) is equal to 1 will set (cell i) to 1 and (cell p) to 0, uses (cell w) for temporary calculation memory allocation<br>
+mvtr (cell input) (cell output): will add the value at (cell input) to (cell output) and leave (cell input) set to 0<br>
+mvab (cell input) (cell output a) (cell output b): will add the value at (cell input) to (cell output a) and (cell output b), leaves (cell input) set to 0<br>
+getcharneq (cell store) (comp) (cell w): gets input char, if input char is not equal to (comp) sets (cell store) to 1, otherwise sets (cell store) to 0, uses (cell w) for temporary calculation memory allocation<br>
+mult (cell input a) (cell input b) (cell output) (cell w): sets (cell output) to product of (cell input a) and (cell input b), sets (cell input a) to 0 and preserves (cell input b), uses (cell w) for temporary calculation memory allocation<br>
+printcell (cell): prints character at (cell)<br>
+startprintcell (cell): prints character at (cell) without returning to cell 0, use printnext to continue, use endprint to finish<br>
+printnext: prints next character in memory<br>
+endprint: ends print sequence<br>
+printuntil (cell) (comp): print all characters starting from (cell) until first next cell equal to (comp); (comp) must be less than all characters in sequence, (comp) = 0 is recommended<br>
+RAW_PLUS (x): adds (x) +s to output<br>
+RAW_MINUS (x): adds (x) -s to output<br>
+RAW_LEFT (x): adds (x) &lts to output<br>
+RAW_RIGHT (x): adds (x) &gts to output<br>
+RAW_OPBR (x): adds (x) [s to output<br>
+RAW_CLBR (x): adds (x) ]s to output<br>
+RAW_DOT (x): adds (x) .s to output<br>
+RAW_COMMA (x): adds (x) ,s to output<br>
+</p>
+
+<script>
+
+//alert("test");
+
+var program;// = "setup 26\nset 1 1\ninv 1 2 3";
+
+var repldct = [
+["setup n",">-<{n}><+[<+]+<"], //setup (final allocated memory index): initializes memory format
+["set c x","{c}>[-]+{x}+{c}<"], //set (cell) (value): sets cell (cell) to (value)
+["mvr c","{c}>"],//mvr (amt): move pointer right by (amt)
+["dec c x","{c}>{x}-{c}<"],//dec (cell) (amt): decrements cell (cell) by (amt)
+["inc c x","{c}>{x}+{c}<"],//inc (cell) (amt): increments cell (cell) by (amt)
+["goto c","[<]{c}>"],//goto (cell): sets pointer to (cell)
+["gotof_ncz c","<[<]{c}>"],//gotof_ncz (cell): sets pointer to (cell), do not use if at cell 0
+["mv i o","{o}>[-]+{o}<{i}>-[-{i}<{o}>+{o}<{i}>]+{i}<"],//mv (input cell) (output cell): sets cell (output cell) to value at (input cell), then sets value at (input cell) to 0
+["printaz char","{char}+.[-]"],//printaz (character number): prints character with numerical code (character number), use when at cell 0
+["printanz char","{char}+.[-]+"],//printanz (character number): prints character with numerical code (character number), use when not at cell 0
+["getchar store","{store}>,+{store}<"],//getchar (cell): stores input char at cell (cell)
+["loop x","{x}>-[+{x}<"],//loop (cell): start of loop, will halt when value at (cell) is 0; make sure value at (cell) is not 0 or -1, otherwise issues will occur
+["endloop x","{x}>-]+{x}<"],//endloop (cell): end of loop, will halt and continue if value at (cell) is 0, otherwise jumps to start of loop
+["if x","{x}>-[+{x}<"],//if (cell): start of if statement, will execute if value at (cell) is not 0
+["endif x","{x}>[-]]+{x}<"],//endif (cell): end of if statement (cell)
+["inv ct cs w","{cs}>[-]++{cs}<{w}>[-]+{w}<{ct}>-[+{ct}<{w}>[-]++{w}<{cs}>[-]+{cs}<{ct}>[-]][-]+{ct}<{w}>-[-{w}<{ct}>+{ct}<{w}>]+{w}<"],//inv (cell i) (cell p) (cell w): if (cell i) is equal to 0 will set (cell i) to 0 and (cell p) to 1, if (cell i) is equal to 1 will set (cell i) to 1 and (cell p) to 0, uses (cell w) for temporary calculation memory allocation
+["mvtr i o","{i}>-[-{i}<{o}>+{o}<{i}>]+{i}<"],//mvtr (cell input) (cell output): will add the value at (cell input) to (cell output) and leave (cell input) set to 0
+["mvab i a b","{i}>-[-{i}<{a}>+{a}<{b}>+{b}<{i}>]+{i}<"],//mvab (cell input) (cell output a) (cell output b): will add the value at (cell input) to (cell output a) and (cell output b), leaves (cell input) set to 0
+["getcharneq store comp w","{store}>[-]+{store}<{w}>,{comp}-[{w}<{store}>+{store}<{w}>[-]]+{w}<"],//getcharneq (cell store) (comp) (cell w): gets input char, if input char is not equal to (comp) sets (cell store) to 1, otherwise sets (cell store) to 0, uses (cell w) for temporary calculation memory allocation
+["mult a b o w","{a}>-[+{a}<{b}>-[-{b}<{o}>+{o}<{w}>+{w}<{b}>]+{b}<{w}>-[-{w}<{b}>+{b}<{w}>]+{w}<{a}>--]+{a}<"],//mult (cell input a) (cell input b) (cell output) (cell w): sets (cell output) to product of (cell input a) and (cell input b), sets (cell input a) to 0 and preserves (cell input b), uses (cell w) for temporary calculation memory allocation
+["printcell c","{c}>-.+{c}<"],//printcell (cell): prints character at (cell)
+["startprintcell c","{c}>-.+"],//startprintcell (cell): prints character at (cell) without returning to cell 0, use printnext to continue, use endprint to finish
+["printnext",">-.+"],//printnext: prints next character in memory
+["endprint","[<]"],//endprint: ends print sequence
+["printuntil c comp","{c}>{comp}--[{comp}++-.+>{comp}--]{comp}++<[<]"],//printuntil (cell) (comp): print all characters starting from (cell) until first next cell equal to (comp); (comp) must be less than all characters in sequence, (comp) = 0 is recommended
+["RAW_PLUS x","{x}+"],
+["RAW_MINUS x","{x}-"],
+["RAW_LEFT x","{x}<"],
+["RAW_RIGHT x","{x}>"],
+["RAW_OPBR x","{x}["],
+["RAW_CLBR x","{x}]"],
+["RAW_DOT x","{x}."],
+["RAW_COMMA x","{x},"]
+];
+
+//alert(compile(program));
+//alert(rmws("     setup  25\n         setup  5 \n"));
+
+function compile_frominpt(){
+    program = document.getElementById("inpt").value;
+    document.getElementById("outp").value = compile(rmws(program));
+}
+
+function rmws(s){
+    var ns = "";
+    var hnws = false;
+    var qs = false;
+    for(var i=0;i<s.length;i++){
+        if(s.charAt(i)===" "){
+            if(hnws){
+                //ns+=" ";
+                qs=true;
+                hnws = false;
+            }else{
+
+            }
+        }else if(s.charAt(i)==="\n"){
+            ns+="\n";
+            qs=false;
+            hnws = false;
+        }else if(s.charAt(i)!=="\t"&&s.charAt(i)!=="\f"&&s.charAt(i)!=="\r"&&s.charAt(i)!=="\v"){
+            if(qs){
+                ns+=" ";
+                qs=false;
+            }
+            ns+=s.charAt(i);
+            hnws = true;
+        }
+    }
+    return ns;
+}
+
+function compile(p){
+    var out = "";
+    p = p.split('\n');
+    for(var i=0;i<p.length;i++){
+        //var t = p[i].split(' ');
+        //alert(p[i]);
+        out+=getrepldct(p[i]);
+    }
+    return out;
+}
+
+function getrepldct(line){
+    var ls = line.split(' ');
+    var rs = -1;
+    var i,j;
+    for(i=0;i<repldct.length;i++){
+        if(ls[0]===repldct[i][0].split(' ')[0]){
+            rs = i;
+            break;
+        }
+    }
+    //alert(rs);
+    if(rs === -1){
+        return "";
+    }else{
+        var ref = repldct[rs][0].split(' ');
+        var str = repldct[rs][1];
+        var newstr = "";
+        var brm = false;
+        var br = "";
+        var amt = 1;
+        for(i=0;i<str.length;i++){
+            if(brm){
+                if(str.charAt(i)==="}"){
+                    //var r;
+                    brm = false;
+                    for(j=1;j<ref.length;j++){
+                        if(br===ref[j]){
+                            amt = parseInt(ls[j]);
+                        }
+                    }
+                }else{
+                    br+=str.charAt(i);
+                }
+            }else{
+                if(str.charAt(i)==="{"){
+                    brm=true;
+                    br = "";
+                }else{
+                    for(j=0;j<amt;j++){
+                        newstr+=str.charAt(i);
+                    }
+                    amt=1;
+                }
+            }
+        }
+        return newstr;
+    }
+    //return "TEST";
+}
+
+</script>
+
+</body>

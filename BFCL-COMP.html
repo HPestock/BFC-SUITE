@@ -1,0 +1,331 @@
+<!DOCTYPE HTML>
+
+<head>
+
+</head>
+<body>
+<h1>BFCL-COMP</h1>
+<textarea id="input"></textarea><textarea id="output"></textarea>
+<br>
+<button onclick="compileinput();">Compile</button>
+
+<br>
+<p>NOTE: Do not let the values of cells/variables equal -1, causes issues<br>
+<br>
+#define (name) (value): define variable %(name) and set it to (value)<br>
+#memory (largest available index): instantiate the operating format for BFC with (largest available index)+1 cells; Must be placed before execution commands<br>
+#const (name) (value): define a constant _(name) with value (value); Cannot be changed once set, only exists in compilation<br>
+cout (string: value, char: variable): print (input) to text output, if fed a variable then will print value at variable, otherwise will print value fed<br>
+#set (variable) (value): will set variable (variable) to (value)<br>
+#set (variable_0) (variable_1) (variable_temp): will set variable (variable_0) to the value of (variable_1) while preserving the value of (variable_1), uses (variable_temp) as temporary variable<br>
+#if (variable): if (variable) is greater than zero, continues execution, otherwise jumps to corresponding #endif; Note that (variable) is set to zero upon execution of corresponding #endif as opposed to being preserved<br>
+#endif: signs the endpoint of its corresponding if statement<br>
+inv (variable_set) (variable_ready) (variable_temp): if (variable_set) is above zero, sets (variable_set) to 1 and (variable_ready) to 0, otherwise sets (variable_ready) to 1; Uses (variable_temp) as temporary variable<br>
+#RAW (string): places (string) into output file (BFC-ASM file); Note that it does not add a newline char on its own<br>
+cin (variable): sets variable (variable) to a char from input buffer<br>
+getcharneq (variable_store) (char) (variable_temp): gets char from input buffer, if char is equal to (char) then sets (variable_store) to 1, otherwise sets (variable_store) to 0; Uses (variable_temp) as temporary variable<br>
+mult (var_a) (var_b) (var_output) (var_temp): sets (var_output) to the product of (var_a) and (var_b), preserves (var_b) and sets (var_a) to 0; Uses (var_temp) as temporary variable<br>
+inc (variable) (amt): increase the value of (variable) by (amt)<br>
+dec (variable) (amt): decrease the value of (variable) by (amt)<br>
+#loop (variable): start of loop (variable)<br>
+#endloop: end of corresponding loop<br>
+printuntil (variable) (compare): print values from cells, starting at (variable) until next cell value is (compare); Prints string<br>
+#define_string (name) [values]: define string %(name) with characters [values] in form 'A' 'B' 'C' 0 etc.; Unstable<br>
+#undef_string (name): undefine string variable (name), either redefine a string with same length before defining anything else, or define no more strings in execution as this function is unstable and will break if these rules are not followed<br>
+</p>
+
+<script>
+
+//alert("test");
+//alert(rmws("   program   ;   program abc  ;   "));
+//alert(brkexcquo("a b"));
+//alert(brkexcquo("a \"a b\""));
+
+var program = "test a b c;test a g;#const C \'A\';#memory _C;#define char0 01;cout \"A\";cout %char0;";
+
+var resv = [];
+var tresv = [];
+var vresv = [];
+var vresvnames = [];
+var consts = [];
+var constnames = [];
+
+var deb_addBrk = false;
+var deb_addRef = false;
+
+//alert(compile(program));
+
+function compileinput(){
+    program = document.getElementById("input").value;
+    document.getElementById("output").value = compile(program);
+}
+
+function compile(P){
+    var p = rmws(P);
+    resv = [0];
+    tresv = [];
+    vresv = [];
+    vresvnames = [];
+    consts = [];
+    constnames = [];
+    var ifvars = [];
+    var loopvars = [];
+    var strstarts = [];
+    var strlengths = [];
+    var strnames = [];
+
+    var out = "";
+
+    var i,j;
+    var curstr = "";
+    for(i=0;i<p.length;i++){
+        if(p.charAt(i)===";"){
+            var tarr = brkexcquo(curstr);
+            if(tarr[0]==="test"){
+                out+="test";
+                for(j=1;j<tarr.length;j++){
+                    out+=" "+tarr[j];
+                }
+                out+="\n";
+            }else if(tarr[0]==="#define"){
+                vresvnames.push("%"+tarr[1]);
+                vresv.push(getleastnext(resv));
+                resv.push(getleastnext(resv));
+                //alert(resv);
+                out+="set "+vresv[vresv.length-1]+" "+formtypetolit(tarr[2])+"\n";
+            }else if(tarr[0]==="#memory"){
+                out+="setup "+formtypetolit(tarr[1])+"\n";
+            }else if(tarr[0]==="#const"){
+                consts.push(formtypetolit(tarr[2]));
+                constnames.push("_"+tarr[1]);
+            }else if(tarr[0]==="cout"){
+                if(tarr[1].charAt(0)==="%"){
+                    out+="printcell "+formtypetolit(tarr[1])+"\n";
+                }else if(tarr[1].charAt(0)==="\'"||tarr[1].charAt(0)==="\""){
+                    for(j=1;j<tarr[1].length-1;j++){
+                        out+="printaz "+formtypetolit("\'"+tarr[1].charAt(j)+"\'")+"\n";
+                    }
+                }else{
+                    out+="printaz "+formtypetolit(tarr[1])+"\n";
+                }
+            }else if(tarr[0]==="#set"){
+                var t_a = formtypetolit(tarr[1]);
+                var t_b = formtypetolit(tarr[2]);
+                if(tarr[2].charAt(0)==="%"){
+                    var t_w = formtypetolit(tarr[3]);
+                    out+="set "+t_a+" 0\nmv "+t_b+" "+t_w+"\nmvab "+t_w+" "+t_a+" "+t_b+"\n";
+                }else{
+                    out+="set "+t_a+" "+t_b+"\n";
+                }
+            }else if(tarr[0]==="#if"){
+                out+="if "+formtypetolit(tarr[1])+"\n";
+                ifvars.push(formtypetolit(tarr[1]));
+            }else if(tarr[0]==="#endif"){
+                out+="endif "+ifvars[ifvars.length-1]+"\n";
+                ifvars.pop();
+            }else if(tarr[0]==="inv"){
+                out+="inv "+formtypetolit(tarr[1])+" "+formtypetolit(tarr[2])+" "+formtypetolit(tarr[3])+"\n";
+            }else if(tarr[0]==="#RAW"){
+                out+=tarr[1].substring(1,tarr[1].length-1);
+            }else if(tarr[0]==="cin"){
+                out+="getchar "+formtypetolit(tarr[1])+"\n";
+            }else if(tarr[0]==="getcharneq"){
+                //alert(tarr);
+                out+="getcharneq "+formtypetolit(tarr[1])+" "+formtypetolit(tarr[2])+" "+formtypetolit(tarr[3])+"\n";
+            }else if(tarr[0]==="mult"){
+                out+="mult "+formtypetolit(tarr[1])+" "+formtypetolit(tarr[2])+" "+formtypetolit(tarr[3])+" "+formtypetolit(tarr[4])+"\n";
+            }else if(tarr[0]==="inc"){
+                out+="inc "+formtypetolit(tarr[1])+" "+formtypetolit(tarr[2])+"\n";
+            }else if(tarr[0]==="dec"){
+                out+="dec "+formtypetolit(tarr[1])+" "+formtypetolit(tarr[2])+"\n";
+            }else if(tarr[0]==="#loop"){
+                out+="loop "+formtypetolit(tarr[1])+"\n";
+                loopvars.push(formtypetolit(tarr[1]));
+            }else if(tarr[0]==="#endloop"){
+                out+="endloop "+loopvars[loopvars.length-1]+"\n";
+                loopvars.pop();
+            }else if(tarr[0]==="printuntil"){
+                out+="printuntil "+formtypetolit(tarr[1])+" "+formtypetolit(tarr[2])+"\n";
+            }else if(tarr[0]==="#define_string"){
+                vresvnames.push("%"+tarr[1]);
+                vresv.push(getleastnext(resv));
+                resv.push(getleastnext(resv));
+                strnames.push("%"+tarr[1]);
+                strlengths.push(tarr.length-2);
+                strstarts.push(resv[resv.length-1]);
+                out+="set "+resv[resv.length-1]+" "+formtypetolit(tarr[2])+"\n";
+                for(j=3;j<tarr.length;j++){
+                    resv.push(getleastnext(resv));
+                    out+="set "+resv[resv.length-1]+" "+formtypetolit(tarr[j])+"\n";
+                }
+            }else if(tarr[0]==="#undef_string"){
+                var ind = 0;
+                for(j=0;j<strnames.length;j++){
+                    if(strnames[j]===tarr[1]){
+                        ind=j;
+                        break;
+                    }
+                }
+                resv.splice(strstarts[ind],strlengths[ind]);
+                strnames.splice(ind,1);
+                strstarts.splice(ind,1);
+                strlengths.splice(ind,1);
+                for(j=0;j<vresvnames.length;j++){
+                    if(vresvnames[j]===tarr[1]){
+                        vresvnames.splice(j,1);
+                        vresv.splice(j,1);
+                        break;
+                    }
+                }
+            }
+
+            if(deb_addRef){
+                out+="// "+curstr+"\n";
+            }
+            if(deb_addBrk){
+                out+="\n";
+            }
+
+            curstr="";
+        }else{
+            curstr+=p.charAt(i);
+        }
+    }
+    return out;
+}
+
+function formtypetolit(s){//returns an integer
+    var i;
+    if(s.charAt(0)==='\''||s.charAt(0)==='\"'){
+        //char
+        return s.charCodeAt(1);
+    }else if(s.charAt(0)==="_"){
+        //const
+        var c = 255;
+        for(i=0;i<constnames.length;i++){
+            if(s===constnames[i]){
+                c = consts[i];
+            }
+        }
+        return c;
+    }else if(s.charAt(0)==="%"){
+        //varpointer
+        var v = 255;
+        for(i=0;i<vresvnames.length;i++){
+            if(s===vresvnames[i]){
+                v = vresv[i];
+            }
+        }
+        return v;
+    }else{
+        //number
+        return parseInt(s);
+    }
+}
+
+function getleastnext(arr){
+    var x = 0;
+    for(var i=0;i<arr.length;i++){
+        if(arr[i]===x){
+            x++;
+        }
+    }
+    return x;
+}
+
+function brkexcquo(s){
+    var outf = [];
+    var out = "";
+    var inq = false;
+    var esc = false;
+    for(var i=0;i<s.length;i++){
+        if(s.charAt(i)==="\'"||s.charAt(i)==="\""){
+            if(!esc){
+                inq = !inq;
+            }
+            out+=s.charAt(i);
+        }else if(s.charAt(i)==="\\"){
+            if(!esc){
+                esc = true;
+            }else{
+                esc = false;
+                out+="\\";
+            }
+        }else if(s.charAt(i)===" "){
+            if(inq){
+                out+=" ";
+            }else{
+                outf.push(out);
+                out = "";
+            }
+        }else if(esc){
+            if(s.charAt(i)==="n"){
+                out+="\n";
+                esc=!esc;
+            }
+        }else{
+            out+=s.charAt(i);
+        }
+    }
+    if(out!==""){
+        outf.push(out);
+    }
+    return outf;
+}
+
+function rmws(s){
+    var ns = "";
+    var hnws = false;
+    var qs = false;
+    var inq = false;
+    var esc = false;
+    for(var i=0;i<s.length;i++){
+        if(inq){
+            if(s.charAt(i)==="\'"||s.charAt(i)==="\""){
+                inq=!inq;
+            }
+            ns+=s.charAt(i);
+            hnws=true;
+        }else{
+        if(s.charAt(i)===" "){
+            if(hnws){
+                //ns+=" ";
+                qs=true;
+                hnws = false;
+            }else{
+
+            }
+        }else if(s.charAt(i)==="\""||s.charAt(i)==="\'"){
+            //if(!esc){
+                inq=!inq;
+            //}
+            if(qs){
+                ns+=" ";
+                qs=false;
+            }
+            ns+=s.charAt(i);
+        }else if(s.charAt(i)==="\\"){
+            ns+="\\";
+        }else if(s.charAt(i)==="\n"){
+            //ns+="\n";
+            qs=false;
+            hnws = false;
+        }else if(s.charAt(i)===";"){
+            qs=false;
+            ns+=";";
+            hnws = false;
+        }else if(s.charAt(i)!=="\t"&&s.charAt(i)!=="\f"&&s.charAt(i)!=="\r"&&s.charAt(i)!=="\v"){
+            if(qs){
+                ns+=" ";
+                qs=false;
+            }
+            ns+=s.charAt(i);
+            hnws = true;
+        }
+        }
+    }
+    return ns;
+}
+
+</script>
+</body>

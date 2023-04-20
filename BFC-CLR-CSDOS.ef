@@ -1,0 +1,628 @@
+var program = "int a 1;int b 2;int t;set %b 3;set %a %b %t;";
+//x x;x;x " "   x   "  x     " x
+
+var varnames = [];
+var vartypes = [];
+var varinfo =  [];
+var macronames = [];
+var macros = [];
+var macroargs = [];
+var macrofeednames = [];
+var macrofeeds = [];
+
+//int: name, "i", pointer; char: name, "c", pointer; const: name, "_", value; bool: name, "b", pointer
+
+function compile(P){
+    var p = rmws(P);
+    var ifs = [];
+    var loops = [];
+    varnames = ["%ZERO"];
+    vartypes = ["i"];
+    varinfo = [0];
+
+    var i;
+    var curstr = "";
+
+    var inmacro = false;
+    var curmacro = "";
+
+    var start = 0;
+
+    var out = "";
+    //console.log(p);
+    for(var i=0;i<=p.length;i++){
+        if(p.charAt(i)===";"||(i===p.length&&curstr!=="")){
+            var l = getlistfrcurstr(curstr);
+            //console.log(l);
+
+            if(inmacro){
+                for(var j=0;j<macrofeednames.length;j++){
+                    if(l[0]===macrofeednames[0]){
+                        l[0]=macrofeeds[0];
+                    }
+                }
+                if(l[0]==="#endmacro"){
+                    inmacro=false;
+                    macros.push(curmacro);
+                    //console.log(macros);
+                    //console.log("\"\\n\"");
+                    //console.log(getlistfrcurstr("\"\\n\""));
+                    //console.log(p);
+                }else if(l[0]==="?>"){
+                    curmacro+=l.slice(1,l.length).join('');
+                }else{
+                    curmacro+=curstr+";";
+                    //console.log(curstr);
+                }
+            }else{
+
+                //console.log(l);
+
+                if(l[0].charAt(0)==="/"&&l[0].charAt(1)==="/"){
+                    //comment
+                }if(l[0]==="test"){
+                    out+="testsuccess\n";
+                    //console.log("test");
+                }else if(l[0]==="int"){
+                    if(l.length===2){
+                        addVar(l[1],"int","");
+                    }else if(l.length>2){
+                        addVar(l[1],"int","");
+                        out+="set "+formtypetolit("%"+l[1])+" "+formtypetolit(l[2])+"\n";
+                    }
+                    //console.log(l);
+                }else if(l[0]==="char"){
+                    if(l.length===2){
+                        addVar(l[1],"char","");
+                    }else if(l.length>2){
+                        addVar(l[1],"char","");
+                        out+="set "+formtypetolit("%"+l[1])+" "+formtypetolit(l[2])+"\n";
+                    }
+                    //console.log(l);
+                }else if(l[0]==="bool_cell"){
+                    if(l.length===2){
+                        addVar(l[1],"bool_cell","");
+                    }else if(l.length>2){
+                        addVar(l[1],"bool_cell","");
+                        out+="set "+formtypetolit("%"+l[1])+" "+formtypetolit(l[2])+"\n";
+                    }
+                    //console.log(l);
+                }else if(l[0]==="#const"){
+                    if(l.length>2){
+                        addVar(l[1],"const",formtypetolit(l[2]));
+                    }
+                    //console.log(l);
+                }else if(l[0]==="cout"){
+                    var t = feedtype(l[1]);
+                    switch(t){
+                        case "char":
+                            out+="printaz "+formtypetolit(l[1])+"\n";
+                            break;
+                        case "string":
+                            //for(var ti=1;ti<l[1].length-1;ti++){
+                                out+="printaz "+l[1].charCodeAt(ti)+"\n";
+                            }
+                            break;
+                        case "const":
+                            out+="printaz "+formtypetolit(l[1])+"\n";
+                            break;
+                        case "var":
+                            out+="printcell "+formtypetolit(l[1])+"\n";
+                            break;
+                        case "lit":
+                            out+="printaz "+formtypetolit(l[1])+"\n";
+                            break;
+                    }
+                }else if(l[0]==="if"){
+                    ifs.push(formtypetolit(l[1]));
+                    out+="if "+ifs[ifs.length-1]+"\n";
+                }else if(l[0]==="endif"){
+                    out+="endif "+ifs[ifs.length-1]+"\n";
+                    ifs.pop();
+                }else if(l[0]==="loop"){
+                    loops.push(formtypetolit(l[1]));
+                    out+="loop "+loops[loops.length-1]+"\n";
+                }else if(l[0]==="endloop"){
+                    out+="endloop "+loops[loops.length-1]+"\n";
+                    loops.pop();
+                }else if(l[0]==="#memory"){
+                    out+="setup "+formtypetolit(l[1])+"\n";
+                }else if(l[0]==="#automemorycellz"){
+                    out+="RAW_MINUS 2\nRAW_OPBR 1\nRAW_MINUS 1\nRAW_RIGHT 1\nRAW_PLUS 1\nRAW_LEFT 1\nRAW_CLBR 1\nRAW_RIGHT 1\nRAW_MINUS 1\nRAW_OPBR 2\nRAW_RIGHT 1\nRAW_CLBR 1\nRAW_PLUS 1\nRAW_OPBR 1\nRAW_LEFT 1\nRAW_CLBR 1\nRAW_RIGHT 1\nRAW_MINUS 1\nRAW_CLBR 1\nRAW_PLUS 1\nRAW_LEFT 1\n";
+                }else if(l[0]==="#RAW"){
+                    out+=formtypetolit(l[1])+"\n";
+                }else if(l[0]==="#RAW_NOLF"){
+                    out+=formtypetolit(l[1]);
+                }else if(l[0]==="set"){
+                    var ft = feedtype(l[2]);
+                    if(ft==="char"||ft==="const"||ft==="lit"){
+                        out+="set "+formtypetolit(l[1])+" "+formtypetolit(l[2])+"\n";
+                    }else if(ft==="var"){
+                        //mvtr i t
+                        //mvab t i o
+                        out+="mvtr "+formtypetolit(l[2])+" "+formtypetolit(l[3])+"\nset "+formtypetolit(l[1])+" 0\nset "+formtypetolit(l[2])+" 0\nmvab "+formtypetolit(l[3])+" "+formtypetolit(l[1])+" "+formtypetolit(l[2])+"\n";
+                    }
+                }else if(l[0]==="cin"){
+                    out+="getchar "+formtypetolit(l[1])+"\n";
+                }else if(l[0]==="#define_macro"){
+                    inmacro=true;
+                    macronames.push(l[1]);
+                    if(l.length>2){
+                        macroargs.push(l.slice(2,l.length));
+                        //console.log(l[1]);
+                    }else{
+                        macroargs.push(false);
+                    }
+                    //console.log(l[1]);
+                    //console.log(macroargs);
+                    //macros.push();
+                    curmacro="";
+                }else if(l[0]==="#domacro"){
+                    var o = "";
+                    var a = false;
+                    for(var j=0;j<macronames.length;j++){
+                        if(macronames[j]===l[1]){
+                            o=macros[j];
+                            a=macroargs[j];
+                            //console.log(macroargs[j]);
+                            //console.log(macroargs);
+                        }
+                    }
+                    //console.log(a);
+                    //console.log(o);
+                    if(a!==false){
+                        //console.log(a);
+                        var m = false;
+                        var astr = "";
+                        var esc = false;
+                        var me;
+                        //var me;
+                        //var mch = [];
+                        //console.log(o);
+                        for(j=0;j<o.length;j++){
+                            if(m){
+                                if(o.charAt(j)==="n"||o.charAt(j)==="\n"){
+                                    //console.log(o.charAt(j)+": "+j);
+                                }
+                                if(o.charAt(j)==="\\"){
+                                    astr+="\\";
+                                    esc=true;
+                                }else if(esc){
+                                    //console.log(o.charAt(j));
+                                    //if(o.charAt(j)==="n"){
+                                    //    astr+="\n";
+                                    //}else{
+                                        astr+=o.charAt(j);
+                                        esc=false;
+                                    //}
+                                }else if(o.charAt(j)==="$"){
+                                    m=false;
+                                    var k=0;
+                                    //console.log(a);
+                                    //console.log("astr: "+astr);
+                                    for(k=0;k<a.length;k++){
+                                        if(a[k]===astr){
+                                            //console.log("k: "+k);
+                                            break;
+                                        }
+                                    }
+                                    //console.log(l);
+                                    //console.log(l[k+2]);
+                                    //console.log(o.slice(j+1,o.length));
+                                    //console.log(o.slice(0,me));
+                                    o = o.slice(0,me)+l[k+2]+o.slice(j+1,o.length);
+                                    j+=l[k+1].length;
+                                    //console.log(o);
+                                    //console.log(j);
+                                }else{
+                                    astr+=o.charAt(j);
+                                }
+                            }else{
+                                if(o.charAt(j)==="\\"){
+                                    esc=true;
+                                }else if(esc){
+                                    esc=false;
+                                }else if(o.charAt(j)==="$"){
+                                    m=true;
+                                    me=j;
+                                }
+                            }
+                        }
+                    }
+                    //console.log(o);
+                    //console.log(macronames);
+                    p=p.slice(0,start)+o+p.slice(i+1,p.length);
+                    i=start-1;
+                    //console.log(p);
+                }else if(l[0]==="inc"){
+                    out+="inc "+formtypetolit(l[1])+" "+formtypetolit(l[2])+"\n";
+                }else if(l[0]==="dec"){
+                    out+="dec "+formtypetolit(l[1])+" "+formtypetolit(l[2])+"\n";
+                }else if(l[0]==="mult"){
+                    out+="mult "+formtypetolit(l[1])+" "+formtypetolit(l[2])+" "+formtypetolit(l[3])+" "+formtypetolit(l[4])+"\n";
+                }else if(l[0]==="#include"){
+                    p = runtime_link(formtypetolit(l[1]),i,p);//#include "/dir/file.ext" OR conststr="/dir/file.ext";#include _conststr -- DOES NOT ACCEPT VARIABLES, SINCE RETURNS VARPOINTER
+                    //console.log(p.charAt(i));
+                    //console.log(p.charAt(i+1));
+                }else if(l[0]==="#define_macro_feed"){
+                    macrofeednames.push(l[1]);
+                    macrofeeds.push(formtypetolit(l[2]));
+                }else{
+                    //console.log("unidentified token, attempting macro");
+                    var o = "";
+                    var a = false;
+                    for(var j=0;j<macronames.length;j++){
+                        if(macronames[j]===l[0]){
+                            o=macros[j];
+                            a=macroargs[j];
+                        }
+                    }
+                    //console.log(o);
+                    //console.log(macronames);
+                    if(o!==""){
+                        //var a = false;
+                    /*for(var j=0;j<macronames.length;j++){
+                        if(macronames[j]===l[1]){
+                            o=macros[j];
+                            a=macroargs[j];
+                        }
+                    }*/
+                    //console.log(o);
+                    //console.log(a);
+                    if(a!==false){
+                        //console.log(a);
+                        var m = false;
+                        var astr = "";
+                        var esc = false;
+                        var me;
+                        //var me;
+                        //var mch = [];
+                        for(j=0;j<o.length;j++){
+                            if(m){
+                                if(o.charAt(j)==="\\"){
+                                    esc=true;
+                                }else if(esc){
+                                    //if(o.charAt(j)==="n"){
+                                    //    astr+="\n";
+                                    //}else{
+                                        astr+=o.charAt(j);
+                                        esc=false;
+                                    //}
+                                }else if(o.charAt(j)==="$"){
+                                    m=false;
+                                    var k=0;
+                                    //console.log(a);
+                                    //console.log("astr: "+astr);
+                                    for(k=0;k<a.length;k++){
+                                        if(a[k]===astr){
+                                            //console.log("k: "+k);
+                                            break;
+                                        }
+                                    }
+                                    //console.log(l);
+                                    o = o.slice(0,me)+l[k+1]+o.slice(j+1,o.length);
+                                    j+=l[k+1].length;
+                                    //console.log(o);
+                                    //console.log(j);
+                                }else{
+                                    astr+=o.charAt(j);
+                                }
+                            }else{
+                                if(o.charAt(j)==="\\"){
+                                    esc=true;
+                                }else if(esc){
+                                    esc=false;
+                                }else if(o.charAt(j)==="$"){
+                                    m=true;
+                                    me=j;
+                                }
+                            }
+                        }
+                    }
+                        p=p.slice(0,start)+o+p.slice(i+1,p.length);
+                        i=start-1;
+                    }else{
+                        //Not a macro
+                    }
+                    //console.log(p);
+                }
+
+            }
+
+            curstr="";
+            start=i+1;
+        }else if(i<p.length){
+            curstr+=p.charAt(i);
+        }
+    }
+    return out;
+}
+
+function feedtype(s){
+    if(s.charAt(0)==="'"){
+        return "char";
+    }else if(s.charAt(0)==="\""){
+        return "string";
+    }else if(s.charAt(0)==="_"){
+        return "const";
+    }else if(s.charAt(0)==="%"){
+        return "var";
+    }else if(s==="true"||s==="false"){
+        return "lit";
+    }else{
+        return "lit";
+    }
+}
+
+function getlistfrcurstr(str){
+    var inq = false;
+    var temp = "";
+    var out = [];
+    var esc = false;
+    var qchar = "";
+    for(var i=0;i<str.length;i++){
+        if(esc){
+            temp+=str.charAt(i);
+            esc=false;
+        }else if(inq){
+            if(str.charAt(i)==="\\"){
+                //temp
+                esc=true;
+            }//else{
+                temp+=str.charAt(i);
+            //}
+            if(str.charAt(i)===qchar&&!esc){
+                inq=false;
+            }
+        }else if(str.charAt(i)==="\\"){
+            esc = true;
+            //temp+="\\";
+        }else if(str.charAt(i)==="\""||str.charAt(i)==="'"){
+            qchar = str.charAt(i);
+            temp+=qchar;
+            inq=true;
+        }else if(str.charAt(i)===" "){
+            out.push(temp);
+            temp="";
+        }else{
+            temp+=str.charAt(i);
+        }
+    }
+    if(temp!==""){
+        out.push(temp);
+    }
+    return out;
+}
+
+function rmws(str){
+    var hitws = true;
+    var qws = false;
+    var out = "";
+    var esc = false;
+    var inq = false;
+    var qchar = "";
+    var hitany = false;
+    for(var i=0;i<str.length;i++){
+        if(inq){
+            if(esc){
+                if(str.charAt(i)==="n"){
+                    out+="n";
+                }else if(str.charAt(i)==="\""){
+                    out+="\"";
+                }else if(str.charAt(i)==="'"){
+                    out+="'";
+                }else{
+                    out+=str.charAt(i);
+                }
+                esc=false;
+            }else if(str.charAt(i)==="\\"){
+                esc=true;
+                out+="\\";
+            }else if(str.charAt(i)===qchar){
+                inq=false;
+                out+=qchar;
+                if(qws){
+                    //hitws=false;
+                    qws=false;
+                    out+=" ";
+                }
+                hitws=false;
+            }else{
+                out+=str.charAt(i);
+            }
+        }else{
+            if(esc){
+                if(str.charAt(i)==="n"){
+                    out+="\n";
+                }else if(str.charAt(i)==="\""){
+                    out+="\"";
+                }else if(str.charAt(i)==="'"){
+                    out+="'";
+                }
+                esc=false;
+            }else if(str.charAt(i)==="\\"){
+                if(qws){
+                    //hitws=false;
+                    qws=false;
+                    out+=" ";
+                }
+                hitws=false;
+                esc=true;
+                hitany=true;
+            }else if(str.charAt(i)==="\""||str.charAt(i)==="'"){
+                if(qws){
+                    //hitws=false;
+                    qws=false;
+                    out+=" ";
+                }
+                hitws=false;
+                inq=true;
+                qchar=str.charAt(i);
+                out+=str.charAt(i);
+                hitany=true;
+            }else if(str.charAt(i)==="\n"||str.charAt(i)===";"){
+                if(hitany){
+                    hitws=true;
+                    qws=false;
+                    out+=";";
+                    hitany=false;
+                }
+            }else if(str.charAt(i)===" "||str.charAt(i)==="\t"){
+                if(!hitws){
+                    //out+=" ";
+                    hitws=true;
+                    qws=true;
+                }
+                hitany=true;
+            }else{
+                if(qws){
+                    //hitws=false;
+                    qws=false;
+                    out+=" ";
+                }
+                hitws=false;
+                out+=str.charAt(i);
+                hitany=true;
+            }
+        }
+    }
+    return out;
+}
+
+function formtypetolit(s){
+    var i;
+    if(s.charAt(0)==='\''){
+        //char
+        return s.charCodeAt(1);
+    }else if(s.charAt(0)==='\"'){
+        //string
+        return s.slice(1,s.length-1);
+    }else if(s.charAt(0)==="_"){
+        //const
+        var c = -1;
+        for(i=0;i<varnames.length;i++){
+            if(s===varnames[i]&&vartypes[i]==="_"){
+                c = varinfo[i];
+            }
+        }
+        return c;
+    }else if(s.charAt(0)==="%"){
+        //varpointer
+        var v = -1;
+        for(i=0;i<varnames.length;i++){
+            if(s===varnames[i]&&(vartypes[i]==="i"||vartypes[i]==="c"||vartypes[i]==="b")){
+                v = varinfo[i];
+            }
+        }
+        return v;
+    }else if(s==="true"){
+        return 1;
+    }else if(s==="false"){
+        return 0;
+    }else{
+        //number
+        return parseInt(s);
+    }
+}
+
+function addVar(name,type,info){
+    //Only use in instantiation, does not set values of vars
+    switch(type){
+        case "const":
+            varnames.push("_"+name);
+            vartypes.push("_");
+            varinfo.push(info);
+            break;
+        case "int":
+            varnames.push("%"+name);
+            vartypes.push("i");
+            varinfo.push(getnextunresvcell());
+            break;
+        case "char":
+            varnames.push("%"+name);
+            vartypes.push("c");
+            varinfo.push(getnextunresvcell());
+            break;
+        case "bool_cell":
+            varnames.push("%"+name);
+            vartypes.push("b");
+            varinfo.push(getnextunresvcell());
+            break;
+    }
+    //varinfo.push(info);
+}
+
+function getnextunresvcell(){
+    var a = 0;
+    for(var i=0;i<vartypes.length;i++){
+        if(vartypes[i]==="c"||vartypes[i]==="i"||vartypes[i]==="b"){
+            if(varinfo[i]===a){
+                a++;
+                i=-1;
+            }
+        }
+    }
+    return a;
+}
+
+//alert(rmws(program));
+//addVar("test","int","1");
+//alert(formtypetolit("%test"));
+//alert(getlistfrcurstr("a b c d \"   e   f  \\\"  f g  h\" i j k"));
+/*addVar("0","int",3);
+addVar("1","int",2);
+addVar("2","int",0);
+alert(getnextunresvcell());
+addVar("3","int",1);
+alert(getnextunresvcell());*/
+//alert(compile(program));
+//console.log(getlistfrcurstr("a b c \"   \\\"   \" d e"));
+
+//CSDOS Compatability Code
+function getCLIParams(inl){
+    var inpfile = "";
+    var outpfile = "";
+    var outpcli = false;
+    var linkfile = "";
+    for(var i=2;i<inl.length;i++){
+        switch(inl[i]){
+            case "-fi":
+                if(inl.length-i>1){
+                    inpfile=inl[i+1];
+                    i+=1;
+                }
+                break;
+            case "-fo":
+                if(inl.length-i>1){
+                    outpfile=inl[i+1];
+                    i+=1;
+                }
+                break;
+            case "-p":
+                outpcli = true;
+                break;
+            case "-l":
+                if(inl.length-i>1){
+                    linkfile+=retfile(dirreltoab(inl[i+1]));
+                    i+=1;
+                }
+                break;
+        }
+    }
+    return [inpfile,outpfile,outpcli,linkfile];
+}
+
+function runtime_link(f_dir_relative,cur_pc,pr){
+    var f = retfile(dirreltoab(f_dir_relative));
+    pr=pr.slice(0,cur_pc+1)+rmws(f)+pr.slice(cur_pc,pr.length);
+    //console.log(pr);
+    return pr;
+}
+
+var params = getCLIParams(cmdinpt);
+program = retfile(dirreltoab(params[0]));
+var outputfilecontents = compile(params[3]+program);//links
+if(params[2]){
+    textbufferpre+=outputfilecontents+"\n";
+}
+placecheapfilelong(params[1],outputfilecontents);
