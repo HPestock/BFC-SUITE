@@ -1,0 +1,152 @@
+u, u, u, 0u,u, 0,sp,hp,t, u, K, s, h, c, w, K, s, h, c, w, ... 
+
+u - reserved temp. space
+0 - false zero (edge)
+0u- false zero / temp. space
+sp- stack pointer
+hp- heap pointer
+K - distance bytes
+s - stack entries
+h - heap entries
+c - move counter booleans
+w - local temp.
+
+Clear c, 
+Calc t, 
+Do routine to run a c and dec t
+
+MOVDYN STACK/HEAP{1,2=>OFFSET} LOC: from pointer -> 0
+    >>>>>>>>[[-]>>>>>]<<<<<<<<[<<<<<] ; clear all c, pointer -> 0
+    {OFFSET}>[-{OFFSET}<<+>{OFFSET}>]{OFFSET}< ; tr sp/hp to u_-1, pointer -> 0
+    <[->{OFFSET}>+{OFFSET}<>>>+<<<<]> ; tr u_-1 to sp/hp and t, pointer -> 0
+    >>>{LOC}- ; pointer -> t
+    [ ; loop pointer -> t
+        >>>>>[>>>>>]+<<<<<<<<[<<<<<]>>>- ; populate next c, dec t 1, pointer -> t
+    ] ; end loop pointer -> t
+    >>>>>[>>>>>]<<< ; pointer -> final_c-3
+
+CLRC: from pointer -> 0
+    >>>>>>>>[->>>>>]<<<<<<<<[<<<<<] ; clears all c, pointer -> 0
+
+GTZ: from K
+    <<<<<[<<<<<] ; pointer -> 0
+
+ADCSL STACK/HEAP{1,2=>OFFSET} AMT: from K
+    {OFFSET}>{AMT}+{OFFSET}< ; add AMT to current K+OFFSET
+
+SETCSL STACK/HEAP{1,2=>OFFSET} AMT: from K
+    {OFFSET}>[-]{AMT}+{OFFSET}< ; set current K+OFFSET to AMT
+
+SUBCSL STACK/HEAP{1,2=>OFFSET} AMT: from K
+    {OFFSET}>{AMT}-{OFFSET}< ; subtract AMT from current K+OFFSET
+
+INVSETCSL STACK/HEAP{1,2=>OFFSET} AMT: from K
+    {OFFSET}>[-]{AMT}-{OFFSET}< ; set current K+OFFSET to (BYTESIZE)-AMT //subtractive inverse of AMT from 0-x for cell
+
+MOVABS LOC: from pointer -> 0
+    {LOC}>{LOC}>{LOC}>{LOC}>{LOC}> ; pointer -> 0+ *(5*LOC)
+
+INCIND STACK/HEAP{1,2=>OFFSET}: from pointer -> 0
+    {OFFSET}>+{OFFSET}< ; increase (OFFSET) pointer by 1, pointer -> 0
+
+DECIND STACK/HEAP{1,2=>OFFSET}: from pointer -> 0
+    {OFFSET}>-{OFFSET}< ; decrease (OFFSET) pointer by 1, pointer -> 0
+
+ALLOCSH: from pointer -> 0
+    >>>>>[+>>>>>]+[<<<<<]
+
+DEALLOC: from pointer -> 0
+    >>>>>[->>>>>]<<<<<[<<<<<]
+
+MOVDYNART: from pointer -> 0 //assumes t is already set, continues as MOVDYN
+    >>>>>>>>[[-]>>>>>]<<<<<<<<[<<<<<] >>> ; clear all c, pointer -> t
+    [ ; loop pointer -> t
+        >>>>>[>>>>>]+<<<<<<<<[<<<<<]>>>- ; populate next c, dec t 1, pointer -> t
+    ] ; end loop pointer -> t
+    >>>>>[>>>>>]<<< ; pointer -> final_c-3
+
+MRKLOC: from K
+    >>> [-] <<< <<<<< [>>> [-]+ <<< <<<<<] ; clears current c (last to hit), sets c path, pointer -> 0
+
+TRMRKTOU STACK/HEAP{1,2=>OFFSET} U_IIND: from K
+    [{OFFSET}>-{OFFSET}<[<<<<<]{U_IIND}<+{U_IIND}> >>>>> >>> [>>>>>] <<<] ; moves value at K+OFFSET to u_-U_IIND, value at original location is now 0, pointer -> K
+
+TRCU IUREF INEWUA INEWUB: from pointer -> 0
+    {IUREF}<[-{IUREF}>{INEWUA}<+{INEWUA}>{INEWUB}<+{INEWUB}>{IUREF}<]{IUREF}> ; moves value at u_-IUREF to u_-INEWUA and u_-INEWUB, value at original u location is now 0, pointer -> 0
+
+GTCR: from pointer -> 0
+    >>>>>>>>[>>>>>]<<< ; pointer -> K containing first zeroed c
+
+TRUTOT U_IIND: from pointer -> 0
+    {U_IIND}<[-{U_IIND}>>>+<<<{U_IIND}<]{U_IIND}> ; moves value at u_-IIND to t, value at original u location is now 0, pointer -> 0
+
+TRTTOU U_IIND: from pointer -> 0
+    >>>[-<<<{U_IIND}<+{U_IIND}>>>>]<<< ; moves value at t to u_-IIND, leaves t with value 0, pointer -> 0
+
+CLRCRTADD: from pointer -> 0
+    >>>>> [>>>>>] ; pointer -> K=0
+    >>> [-<<<<<+>>>>>] <<< <<<<< ; transfer last c if exists, pointer -> SET{K=1,0}
+    [ >>> [-<<<<<+>>>>>] <<< <<<<< ] ; transfer down until pointer hits false 0, pointer -> 0
+
+CLRT: from pointer -> 0
+    >>>[-]<<< ; sets t to 0, pointer -> 0
+
+CLRW: from pointer -> 0
+    >>>>> [>>>>[-]>] >>>>[-]<<<< <<<<< [<<<<<] ; sets all w to 0, pointer -> 0
+
+CTOW: from pointer -> 0
+    >>>>> >>> [->+<] <<< [>>>>> >>> [->+<] <<<] <<<<< [<<<<<] ; moves all c to w, does not clear w beforehand, leaves c at 0, pointer -> 0
+
+ADTU OUT_IU USE_IU: from pointer -> 0
+    {USE_IU}<[-{USE_IU}>{OUT_IU}<+{OUT_IU}>{USE_IU}<]{USE_IU}> ; u_-OUT_IU += u_-USE_IU, u_-USE_IU is left with value 0, pointer -> 0
+
+SUBFRU OUT_IU USE_IU: from pointer -> 0
+    {USE_IU}<[-{USE_IU}>{OUT_IU}<-{OUT_IU}>{USE_IU}<]{USE_IU}> ; u_-OUT_IU -= u_-USE_IU, u_-USE_IU is left with value 0, pointer -> 0
+
+IFUNZ U_IIND: from pointer -> 0
+    {U_IIND}<[{U_IIND}> ; opens if loop, pointer -> 0
+
+ENDIF: from pointer -> 0
+    ] ; ends if loop
+
+LOOPUNZ U_IIND: from pointer -> 0
+    {U_IIND}<[{U_IIND}> ; opens while loop, pointer -> 0
+
+ENDLOOPU U_IIND: from pointer -> 0
+    {U_IIND}<]{U_IIND}> ; marks end of while loop, pointer -> 0
+
+RAW STRING: 
+    #raw STRING
+
+SETUP: first called
+    >>>>> ; pointer -> 0
+
+PRINTK STACK/HEAP{1,2=>OFFSET}: from K
+    {OFFSET}>.{OFFSET}< ; pointer -> K
+
+GETCHAR STACK/HEAP{1,2=>OFFSET}: from K
+    {OFFSET}>,{OFFSET}< ; pointer -> K
+
+MOVINVABS LOC: from pointer -> 0
+    >>>>>[>>>>>]{LOC}<{LOC}<{LOC}<{LOC}<{LOC}< ; pointer -> K_max-LOC
+
+SETIU U_IIND VALUE: from pointer -> 0
+    {U_IIND}<[-]{VALUE}+{U_IIND}> ; set u_-IIND to VALUE, pointer -> 0
+
+ADDIU U_IIND AMT: from pointer -> 0
+    {U_IIND}<{AMT}+{U_IIND}> ; add AMT to u_-IIND, pointer -> 0
+
+SUBIU U_IIND AMT: from pointer -> 0
+    {U_IIND}<{AMT}-{U_IIND}> ; subtract AMT from u_-IIND, pointer -> 0
+
+INVSETIU U_IIND VALUE: from pointer -> 0
+    {U_IIND}<[-]{VALUE}-{U_IIND}> ; set u_-IIND to VALUE, pointer -> 0
+
+IFUZ CHK_IU T_IU: from pointer -> 0
+    {T_IU}<[-]+{T_IU}>{CHK_IU}<[[-]{CHK_IU}>{T_IU}<-{T_IU}>{CHK_IU}<]{CHK_IU}>{T_IU}<[[-]{T_IU}> ; pointer -> 0
+
+ENDIFUZ T_IU: from pointer -> 0
+    {T_IU}<]{T_IU}> ; pointer -> 0
+
+SETUPAU U: first called
+    {U}>
